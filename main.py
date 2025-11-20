@@ -23,8 +23,6 @@ def health_check():
     return jsonify(
         {"status": "healthy", "service": "mascot", "mascots_loaded": len(MASCOTS)}
     )
-
-
 @API.route("/", methods=["GET"])
 def get_mascots():
     """

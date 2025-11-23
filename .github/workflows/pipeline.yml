@@ -16,7 +16,7 @@ jobs:
         with:
           python-version: 3.13
 
-      - name: Instalzl requirements
+      - name: Install requirements
         run: pip install --requirement development-requirements.txt
 
       - name: Lint code
@@ -30,6 +30,10 @@ jobs:
   build:
     needs: lint-and-test
     runs-on: ubuntu-latest
+    
+    # 1. Define the output we want to pass to the next job
+    outputs:
+      short_sha: ${{ steps.set_tag.outputs.short_sha }}
 
     permissions:
       packages: write
@@ -48,8 +52,12 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set lowercase repo
-        # This sets REPO_LOWER for use in subsequent steps within the 'build' job.
         run: echo "REPO_LOWER=$(echo ${GITHUB_REPOSITORY} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+      
+      # Step to capture the short SHA and set it as an output for the job
+      - name: Set short SHA for Job Output
+        id: set_tag
+        run: echo "short_sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
       - name: Extract Docker metadata
         id: metadata
@@ -57,6 +65,7 @@ jobs:
         with:
           images: ghcr.io/${{ env.REPO_LOWER }}
           tags: |
+            # We ensure the short SHA is pushed, which is what we will pull later
             type=sha,format=short
             type=sha,format=long
             type=ref,event=branch
@@ -71,14 +80,15 @@ jobs:
           labels: ${{ steps.metadata.outputs.labels }}
 
   test-image:
-    needs: build
+    # 2. Reference the output from the 'build' job
+    needs: [build]
     runs-on: ubuntu-latest
 
     permissions:
       packages: read
 
     steps:
-      # FIX: Redeclare the REPO_LOWER environment variable so it's available in this job
+      # FIX 1: Redeclare REPO_LOWER (as already done in previous fix)
       - name: Set lowercase repo
         run: echo "REPO_LOWER=$(echo ${GITHUB_REPOSITORY} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
         
@@ -91,14 +101,17 @@ jobs:
 
       - name: Pull the image from GitHub Container Registry
         run: |
-          # Now ${{ env.REPO_LOWER }} will correctly resolve to the repository name
-          echo "Pulling image ghcr.io/${{ env.REPO_LOWER }}:${{ github.sha }}"
-          docker pull ghcr.io/${{ env.REPO_LOWER }}:${{ github.sha }}
+          # FIX 2: Use the explicitly passed short_sha tag from the build job
+          IMAGE_TAG="${{ needs.build.outputs.short_sha }}"
+          echo "Pulling image ghcr.io/${{ env.REPO_LOWER }}:$IMAGE_TAG"
+          docker pull ghcr.io/${{ env.REPO_LOWER }}:$IMAGE_TAG
 
       - name: Start ${{ env.SERVICE_NAME }}
         run: |
+          # Use the short_sha tag for running the container
+          IMAGE_TAG="${{ needs.build.outputs.short_sha }}"
           docker run --rm --detach --publish 8080:8080 \
-            --name $SERVICE_NAME ghcr.io/${{ env.REPO_LOWER }}:${{ github.sha }}
+            --name $SERVICE_NAME ghcr.io/${{ env.REPO_LOWER }}:$IMAGE_TAG
           sleep 5
 
       - name: Run tests using the container image

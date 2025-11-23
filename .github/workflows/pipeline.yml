@@ -82,7 +82,9 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Pull the image from GitHub Container Registry
-        run: docker pull ghcr.io/${{ github.repository }}:${{ github.sha }}
+        run: |
+          repo_lower=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          docker pull ghcr.io/${repo_lower}:${{ github.sha }}
 
       - name: Start ${{ env.SERVICE_NAME }}
         run: |

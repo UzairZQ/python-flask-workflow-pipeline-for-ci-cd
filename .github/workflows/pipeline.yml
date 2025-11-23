@@ -47,8 +47,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set lowercase repo variable
-        run: echo "REPO_LOWER=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+      - name: Set lowercase repo
+        run: echo "REPO_LOWER=$(echo ${GITHUB_REPOSITORY} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
       - name: Extract Docker metadata
         id: metadata
@@ -56,9 +56,9 @@ jobs:
         with:
           images: ghcr.io/${{ env.REPO_LOWER }}
           tags: |
-            type=sha,format=short,prefix=,suffix=
-            type=sha,format=long,prefix=,suffix=
-            type=ref,event=branch,prefix=,suffix=
+            type=sha,format=short
+            type=sha,format=long
+            type=ref,event=branch
 
       - name: Build and push the container image
         uses: docker/build-push-action@v6
@@ -85,14 +85,15 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Pull the image from GitHub Container Registry
-        run: docker pull ghcr.io/${{ env.REPO_LOWER }}:${{ github.sha }}
+        run: |
+          echo "Pulling image ghcr.io/${{ env.REPO_LOWER }}:${{ github.sha }}"
+          docker pull ghcr.io/${{ env.REPO_LOWER }}:${{ github.sha }}
 
       - name: Start ${{ env.SERVICE_NAME }}
         run: |
-          docker run \
-            --rm --detach --publish 8080:8080 \
+          docker run --rm --detach --publish 8080:8080 \
             --name $SERVICE_NAME ghcr.io/${{ env.REPO_LOWER }}:${{ github.sha }}
-          sleep 3 # allow service to start
+          sleep 5
 
       - name: Run tests using the container image
         run: |

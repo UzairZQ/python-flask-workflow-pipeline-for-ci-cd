@@ -16,7 +16,7 @@ jobs:
         with:
           python-version: 3.13
 
-      - name: Install requirements
+      - name: Instalzl requirements
         run: pip install --requirement development-requirements.txt
 
       - name: Lint code
@@ -48,6 +48,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set lowercase repo
+        # This sets REPO_LOWER for use in subsequent steps within the 'build' job.
         run: echo "REPO_LOWER=$(echo ${GITHUB_REPOSITORY} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
       - name: Extract Docker metadata
@@ -77,6 +78,10 @@ jobs:
       packages: read
 
     steps:
+      # FIX: Redeclare the REPO_LOWER environment variable so it's available in this job
+      - name: Set lowercase repo
+        run: echo "REPO_LOWER=$(echo ${GITHUB_REPOSITORY} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+        
       - name: Log into ghcr.io
         uses: docker/login-action@v3
         with:
@@ -86,6 +91,7 @@ jobs:
 
       - name: Pull the image from GitHub Container Registry
         run: |
+          # Now ${{ env.REPO_LOWER }} will correctly resolve to the repository name
           echo "Pulling image ghcr.io/${{ env.REPO_LOWER }}:${{ github.sha }}"
           docker pull ghcr.io/${{ env.REPO_LOWER }}:${{ github.sha }}
 
